@@ -4,7 +4,7 @@
 
 ## Version
 
-`0.1.0-dev` — development release candidate.
+`0.1.0` — initial portfolio release.
 
 ## Purpose
 
