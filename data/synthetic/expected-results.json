@@ -1,0 +1,40 @@
+﻿{
+    "DatasetName":  "FraudLens AML Synthetic Transactions",
+    "DatasetVersion":  "1.0",
+    "SyntheticOnly":  true,
+    "TransactionCount":  10,
+    "Scenarios":  [
+                      {
+                          "ScenarioId":  "TEST-NEAR-THRESHOLD",
+                          "Description":  "Three transfers from one sender near the illustrative 10000 threshold within 24 hours.",
+                          "ExpectedTransactionIds":  [
+                                                         "SYN-1001",
+                                                         "SYN-1002",
+                                                         "SYN-1003"
+                                                     ],
+                          "ExpectedMinimumCount":  3,
+                          "ExpectedMaximumAmount":  10000
+                      },
+                      {
+                          "ScenarioId":  "TEST-SHARED-COUNTERPARTY",
+                          "Description":  "Two distinct sender accounts share one receiving account.",
+                          "SharedReceiverAccountId":  "ACCT-SYN-900",
+                          "ExpectedTransactionIds":  [
+                                                         "SYN-1005",
+                                                         "SYN-1006"
+                                                     ],
+                          "ExpectedDistinctSenders":  2
+                      },
+                      {
+                          "ScenarioId":  "TEST-ORDINARY-ACTIVITY",
+                          "Description":  "Ordinary lower-value transactions provide baseline test records.",
+                          "ExpectedTransactionIds":  [
+                                                         "SYN-1004",
+                                                         "SYN-1007",
+                                                         "SYN-1009",
+                                                         "SYN-1010"
+                                                     ]
+                      }
+                  ],
+    "ImportantNote":  "Illustrative patterns only. Threshold proximity and shared counterparties do not establish suspicious activity or criminal intent."
+}

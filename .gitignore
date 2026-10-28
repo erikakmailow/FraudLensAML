@@ -1,0 +1,21 @@
+﻿# Generated output
+logs/
+reports/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.credentials
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+
+# Local script/module recovery copies; keep these out of releases
+*.backup-*
+*.bak-*
+*.broken-*
