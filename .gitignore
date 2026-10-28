@@ -19,3 +19,4 @@ Thumbs.db
 *.backup-*
 *.bak-*
 *.broken-*
+*.pre-eof-fix-*.bak
