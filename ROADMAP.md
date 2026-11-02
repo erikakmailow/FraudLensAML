@@ -1,6 +1,6 @@
 # FraudLens AML — Roadmap
 
-This roadmap records the current implementation status and the remaining work toward a reviewed development release.
+This roadmap records the current implementation status, verified regression baseline, and release history for FraudLens AML v0.2.0.
 
 ## Completed
 
@@ -79,8 +79,8 @@ This roadmap records the current implementation status and the remaining work to
 
 | Runtime | Passed | Failed |
 |---|---:|---:|
-| PowerShell 7.6.9 | 84 | 0 |
-| Windows PowerShell 5.1 | 84 | 0 |
+| PowerShell 7.6.9 | 90 | 0 |
+| Windows PowerShell 5.1 | 90 | 0 |
 
 The combined runner currently executes six suites.
 
@@ -113,10 +113,10 @@ These items are ideas for future work, not claims of existing functionality.
 ## Release and Repository Controls
 
 - The existing `v0.1.0` tag is retained.
-- Current development work is on the `develop` branch.
-- No `v0.2.0` release is declared by this roadmap.
-- No release commit, tag, or remote push is authorized by this document.
-- Any future release action requires explicit review and approval.
+- The v0.2.0 development commit is `1027da43f4852857e7ea70aea1802852107c33cc` on `develop`.
+- The annotated `v0.2.0` tag has been pushed to `origin`.
+- Pull request #1 proposes merging `develop` into `main` and remains open for review.
+- The pull request has not been merged. Merge requires explicit approval.
 
 ## Safety Principles
 

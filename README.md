@@ -1,6 +1,6 @@
 # FraudLens AML
 
-**Version:** 0.1.0 baseline
+**Version:** 0.2.0 (development release; PR #1 pending review)
 **Development branch:** `develop`
 **Project type:** Synthetic-data AML analysis and portfolio demonstration
 
@@ -156,8 +156,8 @@ The combined runner executes six regression suites:
 6. CSV preflight
 Latest Verified Test Baseline
 Runtime	Passed	Failed
-PowerShell 7.6.9	84	0
-Windows PowerShell 5.1	84	0
+PowerShell 7.6.9        90      0
+Windows PowerShell 5.1  90      0
 
 These results represent the test runs completed during development. Run the suite again after making changes.
 Generating a Report
@@ -169,9 +169,9 @@ Review the script's parameters and configuration before running it with a partic
 
 Use synthetic data for demonstration and testing.
 Development Status
-The 0.1.0 baseline is retained in Git.
+The v0.1.0 baseline is retained in Git. The v0.2.0 development release is tagged `v0.2.0` on `develop` and is proposed for `main` through pull request #1.
 
-Additional validation, configurable detection, relationship analysis, reporting, and regression coverage have been developed on the develop branch.
+Additional validation, configurable detection, relationship analysis, reporting, and regression coverage are included in the v0.2.0 development release on `develop`.
 
 See ROADMAP.md for completed work and remaining release tasks.
 Disclaimer
