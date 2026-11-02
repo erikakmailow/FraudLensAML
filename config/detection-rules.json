@@ -1,0 +1,22 @@
+﻿{
+  "ConfigVersion": "1.0",
+  "SyntheticDemoDefaults": true,
+  "Rules": {
+    "FL-001": {
+      "Enabled": true,
+      "MinimumAmountInclusive": 9000,
+      "MaximumAmountExclusive": 10000,
+      "MinimumTransactionCount": 3,
+      "WindowHours": 24
+    },
+    "FL-002": {
+      "Enabled": true,
+      "MinimumDistinctSenders": 2
+    }
+  },
+  "Safety": {
+    "RequireHumanReview": true,
+    "AutomatedSarFiling": false,
+    "AutomatedAccountDecision": false
+  }
+}

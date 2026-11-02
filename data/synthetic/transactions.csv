@@ -1,4 +1,4 @@
-﻿"TransactionId","TimestampUtc","SenderAccountId","ReceiverAccountId","Amount","Currency","Channel"
+TransactionId,TimestampUtc,SenderAccountId,ReceiverAccountId,Amount,Currency,Channel
 "SYN-1001","2026-10-20T09:00:00Z","ACCT-SYN-001","ACCT-SYN-101","9500.00","USD","Wire"
 "SYN-1002","2026-10-20T13:00:00Z","ACCT-SYN-001","ACCT-SYN-102","9700.00","USD","Wire"
 "SYN-1003","2026-10-20T18:00:00Z","ACCT-SYN-001","ACCT-SYN-103","9900.00","USD","Wire"

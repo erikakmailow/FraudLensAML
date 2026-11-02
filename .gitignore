@@ -20,3 +20,8 @@ Thumbs.db
 *.bak-*
 *.broken-*
 *.pre-eof-fix-*.bak
+
+# Local backups of temporary maintenance scripts
+scripts/Patch-FraudLensReportMetadata.ps1.local-backup-*
+
+*.encoding-fix-*.bak

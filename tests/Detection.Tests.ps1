@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 $Root = Join-Path $env:USERPROFILE 'Documents\FraudLensAML'
 $ModulePath = Join-Path $Root 'src\Detection\FraudLensDetection.psm1'
@@ -149,6 +149,69 @@ else {
 }
 
 Assert-Test 'FL-001 evidence IDs match expected records' $EvidenceMatches
+
+# Test 8: Overlapping FL-001 and FL-002 patterns.
+$OverlapTransactions = @(
+    (New-TestTransaction 'OV-1' '2026-10-20T09:00:00Z' 'S-OVER-A' 'R-SHARED' '9500'),
+    (New-TestTransaction 'OV-2' '2026-10-20T10:00:00Z' 'S-OVER-A' 'R-SHARED' '9600'),
+    (New-TestTransaction 'OV-3' '2026-10-20T11:00:00Z' 'S-OVER-A' 'R-OTHER' '9700'),
+    (New-TestTransaction 'OV-4' '2026-10-20T11:30:00Z' 'S-OVER-B' 'R-SHARED' '100')
+)
+
+$OverlapFindings = @(
+    Invoke-FraudLensDetection -Transactions $OverlapTransactions
+)
+
+$OverlapFL001 = @(
+    $OverlapFindings | Where-Object { $_.RuleId -eq 'FL-001' }
+)
+
+$OverlapFL002 = @(
+    $OverlapFindings | Where-Object {
+        $_.RuleId -eq 'FL-002' -and
+        $_.ReceiverAccountId -eq 'R-SHARED'
+    }
+)
+
+Assert-Test 'Overlap produces exactly one FL-001 finding' (
+    $OverlapFL001.Count -eq 1
+)
+
+Assert-Test 'Overlap produces exactly one FL-002 finding' (
+    $OverlapFL002.Count -eq 1
+)
+
+Assert-Test 'FL-001 retains all three qualifying transactions' (
+    $OverlapFL001.Count -eq 1 -and
+    $OverlapFL001[0].TransactionCount -eq 3 -and
+    (@(Compare-Object @('OV-1','OV-2','OV-3') @($OverlapFL001[0].TransactionIds)).Count -eq 0)
+)
+
+Assert-Test 'FL-002 retains all three shared-receiver transactions' (
+    $OverlapFL002.Count -eq 1 -and
+    $OverlapFL002[0].TransactionCount -eq 3 -and
+    $OverlapFL002[0].DistinctSenderCount -eq 2 -and
+    (@(Compare-Object @('OV-1','OV-2','OV-4') @($OverlapFL002[0].TransactionIds)).Count -eq 0)
+)
+
+$OverlapEvidence = @(
+    $OverlapFL001[0].TransactionIds |
+        Where-Object { $OverlapFL002[0].TransactionIds -contains $_ }
+)
+
+Assert-Test 'Shared transactions appear in both findings' (
+    (@(Compare-Object @('OV-1','OV-2') $OverlapEvidence).Count -eq 0)
+)
+
+$UniqueFindingIds = @(
+    $OverlapFindings | Select-Object -ExpandProperty FindingId -Unique
+)
+
+Assert-Test 'Overlapping findings retain distinct finding IDs' (
+    $UniqueFindingIds.Count -eq 2 -and $OverlapFindings.Count -eq 2
+)
+
+Write-Host "`n--- OVERLAPPING PATTERN TESTS COMPLETE ---" -ForegroundColor Cyan
 
 Write-Host "`n=== Regression Test Summary ===" -ForegroundColor Cyan
 Write-Host "Passed: $script:Passed"

@@ -1,10 +1,16 @@
-﻿Set-StrictMode -Version 2.0
+Set-StrictMode -Version 2.0
 
 function Invoke-FraudLensDetection {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [object[]]$Transactions,
+
+        [Parameter()]
+        [switch]$UseConfig,
+
+        [Parameter()]
+        [string]$ConfigPath,
 
         [ValidateRange(1, 100)]
         [int]$NearThresholdMinimumCount = 3,
@@ -22,6 +28,25 @@ function Invoke-FraudLensDetection {
         [int]$SharedCounterpartyMinimumSenders = 2
     )
 
+$ConfigModule = Join-Path $PSScriptRoot '..\Core\DetectionConfiguration.psm1'
+    if ($UseConfig) {
+        Import-Module $ConfigModule -Force -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+            $Config = Import-FraudLensDetectionConfiguration -ErrorAction Stop
+        }
+        else {
+            $Config = Import-FraudLensDetectionConfiguration -Path $ConfigPath -ErrorAction Stop
+        }
+
+        $NearThresholdMinimumCount = $Config.Rules.FL001.MinimumTransactionCount
+        $NearThresholdWindowHours = $Config.Rules.FL001.WindowHours
+        $NearThresholdMinimumAmount = $Config.Rules.FL001.MinimumAmountInclusive
+        $NearThresholdMaximumExclusive = $Config.Rules.FL001.MaximumAmountExclusive
+        $SharedCounterpartyMinimumSenders = $Config.Rules.FL002.MinimumDistinctSenders
+
+        $EnableFL001 = [bool]$Config.Rules.FL001.Enabled
+        $EnableFL002 = [bool]$Config.Rules.FL002.Enabled
+    }
     if ($NearThresholdMinimumAmount -ge $NearThresholdMaximumExclusive) {
         throw 'Minimum amount must be less than the exclusive maximum.'
     }
@@ -84,6 +109,7 @@ function Invoke-FraudLensDetection {
     $Findings = New-Object 'System.Collections.Generic.List[object]'
 
     # FL-001: Repeated transactions within a configurable amount band.
+    if (-not $UseConfig -or $EnableFL001) {
     $Eligible = @(
         $Parsed | Where-Object {
             $_.Amount -ge $NearThresholdMinimumAmount -and
@@ -144,8 +170,10 @@ function Invoke-FraudLensDetection {
             }
         }
     }
+    }
 
     # FL-002: Receiving accounts shared by multiple distinct senders.
+    if (-not $UseConfig -or $EnableFL002) {
     foreach ($ReceiverGroup in @($Parsed | Group-Object ReceiverAccountId)) {
         $DistinctSenders = @(
             $ReceiverGroup.Group |
@@ -180,6 +208,7 @@ function Invoke-FraudLensDetection {
                 ReviewRequired = $true
             })
         }
+    }
     }
 
     return $Findings.ToArray()
