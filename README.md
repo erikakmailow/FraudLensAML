@@ -1,6 +1,6 @@
 # FraudLens AML
 
-**Version:** 0.2.0 (development release; PR #1 pending review)
+**Version:** 0.2.0
 **Development branch:** `develop`
 **Project type:** Synthetic-data AML analysis and portfolio demonstration
 
@@ -139,42 +139,63 @@ FraudLensAML/
 │   ├── RelationshipReporting.Tests.ps1
 │   ├── Run-All-RegressionTests.ps1
 │   └── Validation.Tests.ps1
+├── LICENSE
 ├── README.md
 └── ROADMAP.md
+```
 
-Running the Regression Tests
+## Running the Regression Tests
+
 From the project root, run:
-.\tests\Run-All-RegressionTests.ps1
 
+```powershell
+.\tests\Run-All-RegressionTests.ps1
+```
 
 The combined runner executes six regression suites:
+
 1. Detection
 2. Configuration
 3. Transaction validation
 4. Relationship analysis
 5. Relationship reporting
 6. CSV preflight
-Latest Verified Test Baseline
-Runtime	Passed	Failed
-PowerShell 7.6.9        90      0
-Windows PowerShell 5.1  90      0
+
+### Latest Verified Test Baseline
+
+| Runtime | Passed | Failed |
+|---|---:|---:|
+| PowerShell 7.6.9 | 90 | 0 |
+| Windows PowerShell 5.1 | 90 | 0 |
 
 These results represent the test runs completed during development. Run the suite again after making changes.
-Generating a Report
-The report-generation script is:
-.\scripts\New-FraudLensReport.ps1
 
+## Generating a Report
+
+The report-generation script is:
+
+```powershell
+.\scripts\New-FraudLensReport.ps1
+```
 
 Review the script's parameters and configuration before running it with a particular input file.
 
 Use synthetic data for demonstration and testing.
-Development Status
-The v0.1.0 baseline is retained in Git. The v0.2.0 development release is tagged `v0.2.0` on `develop` and is proposed for `main` through pull request #1.
 
-Additional validation, configurable detection, relationship analysis, reporting, and regression coverage are included in the v0.2.0 development release on `develop`.
+## Development Status
+
+The v0.1.0 baseline is retained in Git. The v0.2.0 release has been merged into `main` through pull request #1. The `v0.2.0` tag identifies the v0.2.0 release commit.
+
+Additional validation, configurable detection, relationship analysis, reporting, and regression coverage are included in v0.2.0.
 
 See ROADMAP.md for completed work and remaining release tasks.
-Disclaimer
+
+## License
+
+FraudLens AML is licensed under the [MIT License](LICENSE). You may use, copy, modify, distribute, and sublicense the project, subject to the terms and conditions in the license.
+
+## Disclaimer
+
 FraudLens AML is an educational and portfolio demonstration.
 
 It is not legal, financial, or regulatory advice; it is not a substitute for a regulated institution's AML program; and it must not independently make customer, account, or reporting decisions.
