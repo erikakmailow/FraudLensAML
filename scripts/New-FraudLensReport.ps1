@@ -1,14 +1,20 @@
 [CmdletBinding()]
-param()
-
+param([string]$ConfigPath)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $CsvPath = Join-Path $Root 'data\synthetic\transactions.csv'
 $ReportDir = Join-Path $Root 'reports'
 $ValidationModule = Join-Path $Root 'src\Core\TransactionValidation.psm1'
+$CsvPreflightModule = Join-Path $Root 'src\Core\CsvPreflight.psm1'
 $DetectionModule = Join-Path $Root 'src\Detection\FraudLensDetection.psm1'
+$DefaultConfigPath = Join-Path $Root 'config\detection-rules.json'
+$RelationshipModule = Join-Path $Root 'src\Analysis\FraudLensRelationships.psm1'
+$RelationshipReportingModule = Join-Path $Root 'src\Reporting\FraudLensRelationshipReporting.psm1'
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $ConfigPath = $DefaultConfigPath
+}
 
-foreach ($RequiredPath in @($CsvPath, $ValidationModule, $DetectionModule)) {
+foreach ($RequiredPath in @($CsvPath, $ValidationModule, $DetectionModule, $ConfigPath, $CsvPreflightModule, $RelationshipModule, $RelationshipReportingModule)) {
     if (-not (Test-Path -LiteralPath $RequiredPath -PathType Leaf)) {
         throw "Required project file is missing: $RequiredPath"
     }
@@ -19,9 +25,13 @@ if (-not (Test-Path -LiteralPath $ReportDir -PathType Container)) {
 }
 
 Import-Module $ValidationModule -Force
+Import-Module $CsvPreflightModule -Force
 Import-Module $DetectionModule -Force
 Import-Module (Join-Path $Root 'src\Reporting\FraudLensAnalystGuidance.psm1') -Force
+Import-Module $RelationshipModule -Force
+Import-Module $RelationshipReportingModule -Force
 
+$null = Test-FraudLensCsv -Path $CsvPath -ErrorAction Stop
 $Transactions = @(Import-Csv -LiteralPath $CsvPath)
 if ($Transactions.Count -eq 0) {
     throw 'The synthetic transaction CSV contains no records.'
@@ -37,12 +47,50 @@ if ($InvalidResults.Count -gt 0) {
     throw ("Validation failed. No report was generated.`n" + ($Details -join "`n"))
 }
 
-$Findings = @(Invoke-FraudLensDetection -Transactions $Transactions)
+
+# Relationship analysis runs only after CSV preflight and transaction validation.
+$RelationshipGraph = New-FraudLensRelationshipGraph -Transactions $Transactions
+
+$PassThroughCandidates = @(
+    Find-FraudLensPassThroughActivity `
+        -Transactions $Transactions `
+        -MaxElapsedHours 24 `
+        -AmountTolerancePercent 10
+)
+
+# Multi-hop paths are optional because no source/target accounts were supplied.
+$RelationshipPaths = @()
+
+$RelationshipAnalysis = New-FraudLensRelationshipReportSection `
+    -Graph $RelationshipGraph `
+    -PassThroughCandidates $PassThroughCandidates `
+    -Paths $RelationshipPaths
+$Findings = @(Invoke-FraudLensDetection -Transactions $Transactions -UseConfig -ConfigPath $ConfigPath)
 
 foreach ($Finding in $Findings) {
     $Finding | Add-Member -NotePropertyName AnalystGuidance -NotePropertyValue (Get-FraudLensAnalystGuidance -RuleId ([string]$Finding.RuleId)) -Force
 }
 
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+
+$EnabledRules = @(
+    foreach ($RuleProperty in $Config.Rules.PSObject.Properties) {
+        if ($RuleProperty.Value.Enabled -eq $true) {
+            [string]$RuleProperty.Name
+        }
+    }
+)
+
+$ConfigurationMetadata = [PSCustomObject]@{
+    ConfigVersion = [string]$Config.ConfigVersion
+    ConfigFile = [System.IO.Path]::GetFileName($ConfigPath)
+    EnabledRules = @($EnabledRules)
+    Safety = [PSCustomObject]@{
+        RequireHumanReview = [bool]$Config.Safety.RequireHumanReview
+        AutomatedSarFiling = [bool]$Config.Safety.AutomatedSarFiling
+        AutomatedAccountDecision = [bool]$Config.Safety.AutomatedAccountDecision
+    }
+}
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $JsonPath = Join-Path $ReportDir ("FraudLens-AML-{0}.json" -f $Timestamp)
 $HtmlPath = Join-Path $ReportDir ("FraudLens-AML-{0}.html" -f $Timestamp)
@@ -51,12 +99,14 @@ $Report = [PSCustomObject]@{
     Project             = 'FraudLens AML'
     GeneratedAt         = (Get-Date).ToString('o')
     Dataset             = 'Synthetic demonstration data'
+    Configuration       = $ConfigurationMetadata
     SyntheticDataOnly   = $true
     TransactionCount    = $Transactions.Count
     ValidTransactionCount = $ValidationResults.Count
     InvalidTransactionCount = $InvalidResults.Count
     FindingCount        = $Findings.Count
     Findings            = @($Findings)
+    RelationshipAnalysis = $RelationshipAnalysis
     Limitations         = @(
         'Demonstration uses synthetic data only.'
         'Rule alerts are leads for human review, not proof of wrongdoing.'
@@ -162,6 +212,15 @@ $HtmlParts = @(
     '<h1>FraudLens AML</h1>'
     '<p class="meta">Synthetic-data demonstration report</p>'
     ('<p><strong>Generated:</strong> {0}</p>' -f [System.Net.WebUtility]::HtmlEncode($Report.GeneratedAt))
+    '<h2>Detection configuration and safeguards</h2>'
+    '<table><tr><th>Setting</th><th>Value</th></tr>'
+    ('<tr><td>Configuration version</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string]$Report.Configuration.ConfigVersion))
+    ('<tr><td>Configuration file</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string]$Report.Configuration.ConfigFile))
+    ('<tr><td>Enabled rules</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string](@($Report.Configuration.EnabledRules) -join ', ')))
+    ('<tr><td>Human review required</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string]$Report.Configuration.Safety.RequireHumanReview))
+    ('<tr><td>Automated SAR filing</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string]$Report.Configuration.Safety.AutomatedSarFiling))
+    ('<tr><td>Automated account decisions</td><td>{0}</td></tr>' -f [System.Net.WebUtility]::HtmlEncode([string]$Report.Configuration.Safety.AutomatedAccountDecision))
+    '</table>'
     '<h2>Summary</h2>'
     '<table><tr><th>Metric</th><th>Value</th></tr>'
     ('<tr><td>Transactions</td><td>{0}</td></tr>' -f $Report.TransactionCount)
@@ -255,7 +314,7 @@ foreach ($FraudLensFinding in $Findings) {
 
     $FraudLensEvidenceSection += @"
 <details class="evidence-details">
-  <summary>$FraudLensSafeRule — $FraudLensSafeName | $FraudLensMatched transaction(s) matched</summary>
+  <summary>$FraudLensSafeRule â€” $FraudLensSafeName | $FraudLensMatched transaction(s) matched</summary>
   <div class="evidence-scroll">
     <p class="meta">Finding reference: $FraudLensSafeId</p>
     <table class="evidence-table">
@@ -274,9 +333,115 @@ $FraudLensEvidenceCss = '.evidence-section{margin-top:30px}.evidence-details{mar
 $Html = $Html.Replace('</style>', ($FraudLensEvidenceCss + '</style>'))
 $Html = $Html.Replace('</body>', ($FraudLensEvidenceSection + '</body>'))
 
+
+# Build a separate relationship-analysis section.
+$RelationshipHtml = @(
+    '<section class="section relationship-section">'
+    '<h2>Account Relationship Analysis</h2>'
+    '<p class="meta">Relationship patterns are investigative leads and require independent human review.</p>'
+    '<table><tr><th>Graph metric</th><th>Value</th></tr>'
+    ('<tr><td>Accounts (nodes)</td><td>{0}</td></tr>' -f $RelationshipAnalysis.Graph.NodeCount)
+    ('<tr><td>Directed relationships (edges)</td><td>{0}</td></tr>' -f $RelationshipAnalysis.Graph.EdgeCount)
+    ('<tr><td>Transactions represented</td><td>{0}</td></tr>' -f $RelationshipAnalysis.Graph.TransactionCount)
+    ('<tr><td>Connected components</td><td>{0}</td></tr>' -f $RelationshipAnalysis.Graph.ComponentCount)
+    ('<tr><td>Potential pass-through candidates</td><td>{0}</td></tr>' -f $RelationshipAnalysis.PassThroughCandidateCount)
+    ('<tr><td>Multi-hop paths supplied</td><td>{0}</td></tr>' -f $RelationshipAnalysis.PathCount)
+    '</table>'
+    '<h3>Connected components</h3>'
+)
+
+$ComponentRows = @()
+
+foreach ($Component in $RelationshipAnalysis.Graph.Components) {
+    $ComponentId = [System.Net.WebUtility]::HtmlEncode([string]$Component.ComponentId)
+    $AccountIds = [System.Net.WebUtility]::HtmlEncode([string](@($Component.AccountIds) -join ', '))
+    $TransactionIds = [System.Net.WebUtility]::HtmlEncode([string](@($Component.TransactionIds) -join ', '))
+
+    $ComponentRows += '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>' -f `
+        $ComponentId,
+        $Component.AccountCount,
+        $Component.EdgeCount,
+        $AccountIds
+
+    $ComponentRows += '<tr><td colspan="4"><strong>Transaction evidence:</strong> {0}</td></tr>' -f $TransactionIds
+}
+
+if ($ComponentRows.Count -eq 0) {
+    $ComponentRows = @('<tr><td colspan="4">No connected components were identified.</td></tr>')
+}
+
+$RelationshipHtml += '<table><tr><th>Component</th><th>Accounts</th><th>Edges</th><th>Account IDs</th></tr>'
+$RelationshipHtml += $ComponentRows
+$RelationshipHtml += '</table>'
+
+$RelationshipHtml += '<h3>Aggregated account relationships</h3>'
+$EdgeRows = @()
+
+foreach ($Edge in $RelationshipAnalysis.Graph.Edges) {
+    $SafeSender = [System.Net.WebUtility]::HtmlEncode([string]$Edge.SenderAccountId)
+    $SafeReceiver = [System.Net.WebUtility]::HtmlEncode([string]$Edge.ReceiverAccountId)
+    $SafeCurrency = [System.Net.WebUtility]::HtmlEncode([string]$Edge.Currency)
+    $SafeIds = [System.Net.WebUtility]::HtmlEncode([string](@($Edge.TransactionIds) -join ', '))
+
+    $EdgeRows += '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>' -f `
+        $SafeSender,
+        $SafeReceiver,
+        $SafeCurrency,
+        $Edge.TransactionCount,
+        $SafeIds
+}
+
+if ($EdgeRows.Count -eq 0) {
+    $EdgeRows = @('<tr><td colspan="5">No relationships were identified.</td></tr>')
+}
+
+$RelationshipHtml += '<table><tr><th>Sender</th><th>Receiver</th><th>Currency</th><th>Transactions</th><th>Transaction evidence</th></tr>'
+$RelationshipHtml += $EdgeRows
+$RelationshipHtml += '</table>'
+
+$RelationshipHtml += '<h3>Potential pass-through activity</h3>'
+$PassThroughRows = @()
+
+foreach ($Candidate in $RelationshipAnalysis.PassThroughCandidates) {
+    $SafeAccount = [System.Net.WebUtility]::HtmlEncode([string]$Candidate.AccountId)
+    $SafeIncoming = [System.Net.WebUtility]::HtmlEncode([string]$Candidate.IncomingTransactionId)
+    $SafeOutgoing = [System.Net.WebUtility]::HtmlEncode([string]$Candidate.OutgoingTransactionId)
+    $SafeCurrency = [System.Net.WebUtility]::HtmlEncode([string]$Candidate.Currency)
+
+    $PassThroughRows += '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td></tr>' -f `
+        $SafeAccount,
+        $SafeIncoming,
+        $SafeOutgoing,
+        $SafeCurrency,
+        $Candidate.ElapsedMinutes,
+        $Candidate.AmountDifferencePercent
+}
+
+if ($PassThroughRows.Count -eq 0) {
+    $PassThroughRows = @('<tr><td colspan="6">No potential pass-through candidates were identified.</td></tr>')
+}
+
+$RelationshipHtml += '<table><tr><th>Account</th><th>Incoming transaction</th><th>Outgoing transaction</th><th>Currency</th><th>Elapsed minutes</th><th>Amount difference (%)</th></tr>'
+$RelationshipHtml += $PassThroughRows
+$RelationshipHtml += '</table>'
+
+$RelationshipHtml += '<h3>Multi-hop paths</h3>'
+$RelationshipHtml += '<p class="meta">No source and target accounts were specified for this report. Multi-hop path analysis was not requested.</p>'
+
+$RelationshipHtml += '<div class="note"><strong>Interpretation and safeguards</strong><ul>'
+
+foreach ($RelationshipLimitation in $RelationshipAnalysis.Limitations) {
+    $SafeLimitation = [System.Net.WebUtility]::HtmlEncode([string]$RelationshipLimitation)
+    $RelationshipHtml += '<li>{0}</li>' -f $SafeLimitation
+}
+
+$RelationshipHtml += '</ul></div></section>'
+
 $FraudLensGuidanceCss = '.analyst-guidance{margin:18px 0;padding:16px 18px;background:#f0f7f7;border:1px solid #cfe4e3;border-left:4px solid #278b86;border-radius:6px}.analyst-guidance h4{margin:0 0 8px;color:#1d5b5a}.guidance-heading{font-weight:600;color:#263f55}.analyst-guidance ul{padding-left:22px;margin:8px 0}.analyst-guidance li{margin:5px 0}.guidance-limit{font-size:12px;color:#52657a;margin:10px 0 0}'
 $Html = $Html.Replace('</style>', ($FraudLensGuidanceCss + '</style>'))
-Set-Content -LiteralPath $HtmlPath -Value $Html -Encoding UTF8
+$Utf8Encoding = New-Object System.Text.UTF8Encoding($false)
+$Html = $Html.Replace('</body>', (($RelationshipHtml -join "`r`n") + '</body>'))
+[System.IO.File]::WriteAllText($HtmlPath, $Html, $Utf8Encoding)
 
 Write-Host ''
 Write-Host 'FraudLens AML report generated successfully.' -ForegroundColor Green

@@ -1,98 +1,180 @@
-﻿# FraudLens AML
+# FraudLens AML
 
-**Financial Crime Intelligence and Investigative Triage Toolkit**
+**Version:** 0.2.0 (development release; PR #1 pending review)
+**Development branch:** `develop`
+**Project type:** Synthetic-data AML analysis and portfolio demonstration
 
-## Version
+## Overview
 
-`0.1.0` — initial portfolio release.
+FraudLens AML is a PowerShell-based project for exploring transaction validation, configurable detection rules, account-relationship analysis, and analyst-oriented reporting.
 
-## Purpose
+The project uses synthetic transaction data to demonstrate analytical workflows. It is not a production AML platform and must not be used as the sole basis for real-world financial, regulatory, or account decisions.
 
-FraudLens AML is a PowerShell-based demonstration project that analyzes synthetic transaction records and surfaces potentially relevant patterns for qualified human review.
+## Current Capabilities
 
-It is intended as a portfolio and learning project, not as a production AML platform or a substitute for an institution's approved investigation, compliance, or reporting procedures.
+### 1. Transaction Validation
 
-## Current capabilities
+The transaction-validation module checks transaction records for issues including:
 
-- Validates transaction input before analysis.
-- Detects repeated transactions within a configurable amount band (FL-001).
-- Detects receiving accounts shared by multiple distinct senders (FL-002).
-- Retains transaction references to support evidence review.
-- Generates timestamped JSON and HTML reports.
-- Provides analyst-oriented review guidance and explicit limitations.
-- Includes a regression-test script for the detection scenarios.
+- Missing required fields
+- Blank or duplicate transaction IDs
+- Missing sender or receiver account identifiers
+- Transactions where the sender and receiver are the same
+- Invalid timestamps
+- Non-numeric or non-positive amounts
+- Missing currency or channel values
 
-## Detection rules
+Validation results identify each transaction and indicate whether it is valid, with associated error details.
 
-### FL-001 — Repeated transactions within an amount band
+### 2. CSV Preflight
 
-Identifies groups of transactions that meet the configured amount and time-window criteria. Such patterns may warrant review, but amounts near a threshold do not establish an intent to evade reporting or prove misconduct.
+The CSV preflight module checks file structure before transaction import.
 
-### FL-002 — Shared receiving account
+It detects issues such as:
 
-Identifies receiving accounts associated with multiple distinct senders under the rule's criteria. A shared receiving account can have legitimate explanations and is not proof of money laundering.
+- Empty files
+- Malformed quotation marks
+- Unclosed quoted fields
+- Unexpected characters after closing quotes
+- Blank, duplicate, or missing headers
+- Inconsistent field counts
 
-Findings are investigative leads. Analysts must validate the underlying records, consider legitimate explanations, and document their rationale.
+Tested input support includes quoted commas, escaped quotes, and UTF-8 BOM files.
 
-## Project structure
+### 3. Configurable Detection Rules
 
-- `config/` — configuration location; inspect local project files for available settings.
-- `data/synthetic/` — fictional demonstration transactions and expected results.
-- `logs/` — local diagnostic logs.
-- `reports/` — generated JSON and HTML reports.
-- `scripts/` — report-generation entry point.
-- `src/Core/` — input validation.
-- `src/Detection/` — detection rules.
-- `src/Reporting/` — analyst guidance and reporting support.
-- `tests/` — regression tests.
+Detection configuration is stored in:
+
+`config/detection-rules.json`
+
+The current demonstration rules are:
+
+| Rule | Description |
+|---|---|
+| FL-001 | Identifies repeated transactions within a configurable near-threshold amount range and time window. |
+| FL-002 | Identifies receiving accounts associated with multiple distinct senders. |
+
+Rules can be enabled or disabled and configured through the JSON configuration file.
+
+Detection operates on validated transaction records.
+
+These rules produce leads for review. They do not establish that money laundering or other misconduct occurred.
+
+### 4. Account-Relationship Analysis
+
+The relationship-analysis module provides:
+
+- Directed account-to-account transaction edges
+- Account nodes and degree information
+- Connected-component analysis
+- Transaction evidence associated with graph edges
+- Directed multi-hop path searches
+- Candidate pass-through activity analysis
+
+Pass-through analysis looks for qualifying incoming and outgoing transaction pairs based on elapsed time, currency, and amount similarity.
+
+A candidate pair does not prove that the same funds moved between accounts. The analysis is intended to support further review, not establish fund tracing, intent, ownership, or misconduct.
+
+### 5. Reporting
+
+The reporting workflow produces JSON and HTML output containing detection findings and analyst-oriented information.
+
+Relationship reporting can include:
+
+- Graph summaries
+- Connected components
+- Transaction edge evidence
+- Multi-hop path results
+- Pass-through candidates
+- Analyst review guidance
+- Limitations and safety information
+
+## Safety and Limitations
+
+FraudLens AML is a synthetic-data demonstration and portfolio project.
+
+The current safety configuration requires human review and prohibits automated suspicious activity report filing and automated account decisions.
+
+Important limitations:
+
+- A rule match is an analytical lead, not proof of misconduct.
+- Transaction patterns and account connections require context and human review.
+- Similar amounts and transaction timing do not establish that the same funds moved.
+- Graph connections do not establish beneficial ownership, control, or intent.
+- Synthetic demonstration results should not be treated as production findings.
+- The project does not replace institutional AML policies, legal obligations, or qualified compliance review.
 
 ## Requirements
 
-- Windows PowerShell 5.1.
-- Git is recommended for version control.
-- Run the project only in an environment where you are authorized to execute its scripts.
+- Windows PowerShell 5.1 or PowerShell 7
+- Access to the project directory
+- Synthetic CSV transaction data for demonstration and testing
 
-## Generate a demonstration report
+No live financial account access is required for the synthetic-data test suites.
 
-Open Windows PowerShell 5.1 and run:
+## Project Structure
 
-```powershell
-Set-Location (Join-Path $env:USERPROFILE 'Documents\FraudLensAML')
-.\scripts\New-FraudLensReport.ps1
-```
+```text
+FraudLensAML/
+├── config/
+│   └── detection-rules.json
+├── scripts/
+│   └── New-FraudLensReport.ps1
+├── src/
+│   ├── Analysis/
+│   │   └── FraudLensRelationships.psm1
+│   ├── Core/
+│   │   ├── CsvPreflight.psm1
+│   │   ├── DetectionConfiguration.psm1
+│   │   └── TransactionValidation.psm1
+│   ├── Detection/
+│   │   └── FraudLensDetection.psm1
+│   └── Reporting/
+│       └── FraudLensRelationshipReporting.psm1
+├── tests/
+│   ├── Configuration.Tests.ps1
+│   ├── CsvPreflight.Tests.ps1
+│   ├── Detection.Tests.ps1
+│   ├── Relationships.Tests.ps1
+│   ├── RelationshipReporting.Tests.ps1
+│   ├── Run-All-RegressionTests.ps1
+│   └── Validation.Tests.ps1
+├── README.md
+└── ROADMAP.md
 
-The script reads the bundled synthetic transaction CSV and writes timestamped JSON and HTML reports to `reports/`.
-
-Review the generated reports to understand the detected patterns and their supporting transaction references.
-
-## Run regression tests
-
+Running the Regression Tests
 From the project root, run:
+.\tests\Run-All-RegressionTests.ps1
 
-```powershell
-.\tests\Detection.Tests.ps1
-```
 
-The test file is a standalone regression harness. It does not require Pester syntax or a Pester 5 installation.
+The combined runner executes six regression suites:
+1. Detection
+2. Configuration
+3. Transaction validation
+4. Relationship analysis
+5. Relationship reporting
+6. CSV preflight
+Latest Verified Test Baseline
+Runtime	Passed	Failed
+PowerShell 7.6.9        90      0
+Windows PowerShell 5.1  90      0
 
-A passing test run supports the tested scenarios only; it does not establish production readiness or prove that the rules detect every relevant pattern.
+These results represent the test runs completed during development. Run the suite again after making changes.
+Generating a Report
+The report-generation script is:
+.\scripts\New-FraudLensReport.ps1
 
-## Safety and limitations
 
-- Use synthetic data for development and demonstrations.
-- Do not use real customer data unless the employer has explicitly approved the data, environment, and intended use.
-- The project is designed for local analysis and does not require external network access.
-- Findings require qualified human review.
-- The project does not automatically file Suspicious Activity Reports (SARs).
-- The project does not automatically block accounts, customers, or transactions.
-- Detection results may include false positives and may miss relevant activity.
-- Preserve source-record references and document review decisions.
-- Follow applicable law and the organization's approved compliance and data-handling procedures.
+Review the script's parameters and configuration before running it with a particular input file.
 
-## Compatibility
+Use synthetic data for demonstration and testing.
+Development Status
+The v0.1.0 baseline is retained in Git. The v0.2.0 development release is tagged `v0.2.0` on `develop` and is proposed for `main` through pull request #1.
 
-Windows PowerShell 5.1.
+Additional validation, configurable detection, relationship analysis, reporting, and regression coverage are included in the v0.2.0 development release on `develop`.
 
-## Development status
+See ROADMAP.md for completed work and remaining release tasks.
+Disclaimer
+FraudLens AML is an educational and portfolio demonstration.
 
-Early-stage portfolio demonstration. Validate the implementation, tests, report contents, and operational requirements before considering any real-world use.
+It is not legal, financial, or regulatory advice; it is not a substitute for a regulated institution's AML program; and it must not independently make customer, account, or reporting decisions.
